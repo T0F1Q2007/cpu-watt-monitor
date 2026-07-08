@@ -5,6 +5,7 @@ After=systemd-modules-load.service
 [Service]
 Type=oneshot
 ExecStart=/bin/chmod o+r /sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj
+ExecStart=-/bin/chmod o+r /sys/class/powercap/intel-rapl/intel-rapl:1/energy_uj
 RemainAfterExit=yes
 
 [Install]
