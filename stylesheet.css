@@ -1,0 +1,15 @@
+/* stylesheet.css — cpu-watt-monitor@tofiq */
+
+.cpu-watt-box {
+    spacing: 4px;          /* gap between icon and text */
+}
+
+.cpu-watt-icon {
+    /* icon_size is set in JS; this rule exists for theme-override convenience */
+}
+
+.cpu-watt-label {
+    font-size:   13px;
+    font-weight: bold;
+    padding:     0 4px 0 0;
+}
