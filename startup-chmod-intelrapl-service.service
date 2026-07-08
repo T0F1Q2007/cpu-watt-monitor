@@ -1,0 +1,11 @@
+[Unit]
+Description=Make Intel RAPL energy counter readable by all users
+After=systemd-modules-load.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/chmod o+r /sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

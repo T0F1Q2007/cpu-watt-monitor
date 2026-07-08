@@ -1,0 +1,8 @@
+{
+  "name": "CPU Watt Monitor",
+  "description": "Displays Intel CPU package power draw (via RAPL) on the left panel, with session peak tracking.",
+  "uuid": "cpu-watt-monitor@tofiq",
+  "shell-version": ["45", "46", "47", "48", "49", "50"],
+  "version": 1,
+  "url": ""
+}
