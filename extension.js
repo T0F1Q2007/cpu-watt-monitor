@@ -114,7 +114,7 @@ const CpuWattIndicator = GObject.registerClass(
       const nowEnergyUj_soc = readSysfsInt(ENERGY_PATH_soc);
       const nowTimeUs = GLib.get_monotonic_time();
 
-      if (nowEnergyUj === null || nowEnergyUj_soc === null) {
+      if (nowEnergyUj === null) {
         this._wattLabel.set_text("EPERM");
         this._peakItem.label.set_text(
           "Peak: -- W  (permission error - restart the service)",
@@ -122,24 +122,31 @@ const CpuWattIndicator = GObject.registerClass(
         return;
       }
 
-      if (this._lastEnergyUj !== null || this._lastEnergyUj_soc !== null) {
+      if (this._lastEnergyUj !== null) {
         const dtUs = nowTimeUs - this._lastTimeUs;
 
         // Handle RAPL counter wrap
         let dEUj = nowEnergyUj - this._lastEnergyUj;
-        let dEUj_soc = nowEnergyUj_soc - this._lastEnergyUj_soc;
         if (dEUj < 0) dEUj += this._maxRangeUj;
-        if (dEUj_soc < 0) dEUj_soc += this._maxRangeUj_soc;
 
         const watts = dEUj / dtUs; // µJ / µs = W  ✓
-        const watts_soc = dEUj_soc / dtUs;
 
         if (watts > this._peakWatts) this._peakWatts = watts;
 
         this._wattLabel.set_text(`${watts.toFixed(1)} W`);
-        this._peakItem.label.set_text(
-          `Peak: ${this._peakWatts.toFixed(1)} W • SoC: ${watts_soc.toFixed(1)} W`,
-        );
+
+        if (nowEnergyUj_soc !== null && this._lastEnergyUj_soc !== null) {
+          let dEUj_soc = nowEnergyUj_soc - this._lastEnergyUj_soc;
+          if (dEUj_soc < 0) dEUj_soc += this._maxRangeUj_soc;
+          const watts_soc = dEUj_soc / dtUs;
+          this._peakItem.label.set_text(
+            `Peak: ${this._peakWatts.toFixed(1)} W • SoC: ${watts_soc.toFixed(1)} W`,
+          );
+        } else {
+          this._peakItem.label.set_text(
+            `Peak: ${this._peakWatts.toFixed(1)} W • SoC: N/A`,
+          );
+        }
       }
 
       this._lastEnergyUj = nowEnergyUj;

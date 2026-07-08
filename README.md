@@ -45,18 +45,18 @@ cp -r cpu-watt-monitor@tofiq ~/.local/share/gnome-shell/extensions/
 
 # 2. Fix RAPL read permissions (one-time, survives reboots)
 sudo tee /etc/udev/rules.d/90-rapl.rules << 'EOF'
-SUBSYSTEM=="powercap", ACTION=="add", RUN+="/bin/chmod o+r /sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj"
+SUBSYSTEM=="powercap", ACTION=="add", RUN+="/bin/sh -c '/bin/chmod o+r /sys/class/powercap/intel-rapl/intel-rapl:*/energy_uj'"
 EOF
 
 # Apply the rule immediately without rebooting:
 sudo udevadm trigger --subsystem-match=powercap
-sudo chmod o+r /sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj
+sudo chmod o+r /sys/class/powercap/intel-rapl/intel-rapl:*/energy_uj
 
 # 3. Enable the extension (no restart needed on GNOME 45+)
 gnome-extensions enable cpu-watt-monitor@tofiq
 ```
 
-> **Alternative without udev:** `sudo chmod o+r /sys/class/powercap/intel-rapl/intel-rapl:0/energy_uj`
+> **Alternative without udev:** `sudo chmod o+r /sys/class/powercap/intel-rapl/intel-rapl:*/energy_uj`
 > This resets on reboot without the udev rule.
 
 ---
