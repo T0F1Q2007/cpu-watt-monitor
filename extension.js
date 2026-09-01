@@ -1,10 +1,5 @@
-// cpu-watt-monitor@tofiq — extension.js  (v2)
-// GNOME 45–50  •  ES-module syntax
-//
-// Changes from v1:
-//   • Accepts extensionPath so the SVG icon can be loaded from the extension dir
-//   • Replaces the ⚡ emoji with a proper St.Icon (symbolic SVG)
-//   • Panel widget is now an HBox: [icon] [text label]
+// cpu-watt-monitor@tofiq — extension.js
+// GNOME 45–50 • ES-module syntax
 
 import GLib from "gi://GLib";
 import Gio from "gi://Gio";
@@ -23,15 +18,17 @@ const ENERGY_PATH = `${RAPL_BASE}/energy_uj`;
 const ENERGY_PATH_soc = `${RAPL_BASE_soc}/energy_uj`;
 const MAX_RANGE_PATH = `${RAPL_BASE}/max_energy_range_uj`;
 const MAX_RANGE_PATH_soc = `${RAPL_BASE_soc}/max_energy_range_uj`;
+
 // ── Tunables ─────────────────────────────────────────────────────────────────
 const POLL_SECONDS = 2;
+const textDecoder = new TextDecoder();
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 function readSysfsInt(path) {
   try {
     const [ok, raw] = GLib.file_get_contents(path);
     if (!ok) return null;
-    const v = parseInt(new TextDecoder().decode(raw).trim(), 10);
+    const v = parseInt(textDecoder.decode(raw).trim(), 10);
     return Number.isFinite(v) ? v : null;
   } catch (_) {
     return null;
@@ -52,8 +49,6 @@ const CpuWattIndicator = GObject.registerClass(
       // ── Panel widget: [SVG icon] [text label] ────────────────────────────
       const box = new St.BoxLayout({ style_class: "cpu-watt-box" });
 
-      // Gio.FileIcon loads the SVG directly from the extension's icons/ dir,
-      // bypassing the system icon theme entirely — no installation step needed.
       const iconFile = Gio.File.new_for_path(
         `${extensionPath}/icons/cpu-watt-symbolic.svg`,
       );
@@ -101,23 +96,24 @@ const CpuWattIndicator = GObject.registerClass(
       );
 
       // ── State ────────────────────────────────────────────────────────────
+      this._hasSoc = GLib.file_test(ENERGY_PATH_soc, GLib.FileTest.EXISTS);
       this._lastEnergyUj = null;
       this._lastEnergyUj_soc = null;
       this._lastTimeUs = null;
       this._maxRangeUj = readSysfsInt(MAX_RANGE_PATH) ?? 262144000000;
-      this._maxRangeUj_soc = readSysfsInt(MAX_RANGE_PATH_soc) ?? 262144000000;
+      this._maxRangeUj_soc = this._hasSoc ? (readSysfsInt(MAX_RANGE_PATH_soc) ?? 262144000000) : 0;
       this._peakWatts = 0;
     }
 
     update() {
       const nowEnergyUj = readSysfsInt(ENERGY_PATH);
-      const nowEnergyUj_soc = readSysfsInt(ENERGY_PATH_soc);
+      const nowEnergyUj_soc = this._hasSoc ? readSysfsInt(ENERGY_PATH_soc) : null;
       const nowTimeUs = GLib.get_monotonic_time();
 
       if (nowEnergyUj === null) {
         this._wattLabel.set_text("EPERM");
         this._peakItem.label.set_text(
-          "Peak: -- W  (permission error - restart the service)",
+          "Peak: -- W (permission error - verify RAPL sysfs access)",
         );
         return;
       }
@@ -125,27 +121,29 @@ const CpuWattIndicator = GObject.registerClass(
       if (this._lastEnergyUj !== null) {
         const dtUs = nowTimeUs - this._lastTimeUs;
 
-        // Handle RAPL counter wrap
-        let dEUj = nowEnergyUj - this._lastEnergyUj;
-        if (dEUj < 0) dEUj += this._maxRangeUj;
+        if (dtUs > 0) {
+          // Handle RAPL counter wrap
+          let dEUj = nowEnergyUj - this._lastEnergyUj;
+          if (dEUj < 0) dEUj += this._maxRangeUj;
 
-        const watts = dEUj / dtUs; // µJ / µs = W  ✓
+          const watts = dEUj / dtUs; // µJ / µs = Joules / second = Watts
 
-        if (watts > this._peakWatts) this._peakWatts = watts;
+          if (watts > this._peakWatts) this._peakWatts = watts;
 
-        this._wattLabel.set_text(`${watts.toFixed(1)} W`);
+          this._wattLabel.set_text(`${watts.toFixed(1)} W`);
 
-        if (nowEnergyUj_soc !== null && this._lastEnergyUj_soc !== null) {
-          let dEUj_soc = nowEnergyUj_soc - this._lastEnergyUj_soc;
-          if (dEUj_soc < 0) dEUj_soc += this._maxRangeUj_soc;
-          const watts_soc = dEUj_soc / dtUs;
-          this._peakItem.label.set_text(
-            `Peak: ${this._peakWatts.toFixed(1)} W • SoC: ${watts_soc.toFixed(1)} W`,
-          );
-        } else {
-          this._peakItem.label.set_text(
-            `Peak: ${this._peakWatts.toFixed(1)} W • SoC: N/A`,
-          );
+          if (nowEnergyUj_soc !== null && this._lastEnergyUj_soc !== null) {
+            let dEUj_soc = nowEnergyUj_soc - this._lastEnergyUj_soc;
+            if (dEUj_soc < 0) dEUj_soc += this._maxRangeUj_soc;
+            const watts_soc = dEUj_soc / dtUs;
+            this._peakItem.label.set_text(
+              `Peak: ${this._peakWatts.toFixed(1)} W • SoC: ${watts_soc.toFixed(1)} W`,
+            );
+          } else {
+            this._peakItem.label.set_text(
+              `Peak: ${this._peakWatts.toFixed(1)} W • SoC: N/A`,
+            );
+          }
         }
       }
 
@@ -155,6 +153,8 @@ const CpuWattIndicator = GObject.registerClass(
     }
 
     destroy() {
+      this._wattLabel = null;
+      this._peakItem = null;
       super.destroy();
     }
   },
@@ -163,10 +163,7 @@ const CpuWattIndicator = GObject.registerClass(
 // ── Extension entry point ────────────────────────────────────────────────────
 export default class CpuWattExtension extends Extension {
   enable() {
-    // this.path → absolute path to the extension directory (GNOME 45+ API)
     this._indicator = new CpuWattIndicator(this.metadata.uuid, this.path);
-
-    // 'left' panel box, index 1 → immediately right of Activities button
     Main.panel.addToStatusArea(this.metadata.uuid, this._indicator, 4, "left");
 
     this._timerId = GLib.timeout_add_seconds(
@@ -178,7 +175,7 @@ export default class CpuWattExtension extends Extension {
       },
     );
 
-    // Populate immediately; don't leave the label blank for POLL_SECONDS
+    // Initial reading
     this._indicator.update();
   }
 
